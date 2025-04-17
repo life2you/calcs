@@ -1,0 +1,66 @@
+# 交易所配置
+exchanges:
+  binance:
+    enabled: true
+    api_key: "你的币安API密钥"
+    api_secret: "你的币安API密钥"
+  okx:
+    enabled: true
+    api_key: "你的OKX API密钥"
+    api_secret: "你的OKX API密钥"
+    passphrase: "你的OKX Passphrase"
+  bitget:
+    enabled: true
+    api_key: "你的Bitget API密钥"
+    api_secret: "你的Bitget API密钥"
+    passphrase: "你的Bitget Passphrase"
+
+# 交易策略配置
+trading:
+  min_yearly_funding_rate: 50.0
+  max_leverage: 5
+  max_position_size_percent: 0.6
+  account_usage_limit: 0.75
+  min_profit_threshold: 0.5
+  allowed_symbols: 
+    - "BTC/USDT"
+    - "ETH/USDT"
+    - "SOL/USDT"
+    - "XRP/USDT"
+    - "DOGE/USDT"
+
+# 风险管理配置
+risk_management:
+  liquidation_warning_threshold: 0.25
+  liquidation_emergency_threshold: 0.15
+  hedge_rebalance_threshold: 0.03
+  max_position_time_days: 14
+  volatility_risk_weight: 0.3
+  liquidation_risk_weight: 0.4
+  liquidity_risk_weight: 0.2
+  exchange_risk_weight: 0.1
+  max_hedge_ratio_adjustment: 0.2
+  anomaly_z_score_threshold: 3.0
+
+# 系统配置
+system:
+  funding_rate_check_interval_minutes: 10
+  risk_monitoring_interval_minutes: 15
+  log_level: "INFO"
+  data_dir: "./data"
+  log_dir: "./logs"
+
+# Redis配置
+redis:
+  host: "localhost"
+  port: 6379
+  password: ""
+  db: 0
+  key_prefix: "funding_bot:"
+
+# 通知配置
+notification:
+  telegram:
+    enabled: false
+    bot_token: "你的Telegram机器人Token"
+    chat_id: "你的Telegram聊天ID" 

@@ -1,0 +1,52 @@
+{
+  "exchanges": {
+    "binance": {
+      "enabled": true
+    },
+    "okx": {
+      "enabled": true
+    },
+    "bitget": {
+      "enabled": true
+    }
+  },
+  "trading": {
+    "min_yearly_funding_rate": 50.0,
+    "max_leverage": 5,
+    "max_position_size_percent": 0.6,
+    "account_usage_limit": 0.75,
+    "min_profit_threshold": 0.5,
+    "allowed_symbols": ["BTC/USDT", "ETH/USDT", "SOL/USDT", "XRP/USDT", "DOGE/USDT"]
+  },
+  "risk_management": {
+    "liquidation_warning_threshold": 0.25,
+    "liquidation_emergency_threshold": 0.15,
+    "hedge_rebalance_threshold": 0.03,
+    "max_position_time_days": 14,
+    "volatility_risk_weight": 0.3,
+    "liquidation_risk_weight": 0.4,
+    "liquidity_risk_weight": 0.2,
+    "exchange_risk_weight": 0.1,
+    "max_hedge_ratio_adjustment": 0.2,
+    "anomaly_z_score_threshold": 3.0
+  },
+  "system": {
+    "funding_rate_check_interval_minutes": 10,
+    "risk_monitoring_interval_minutes": 15,
+    "log_level": "INFO",
+    "data_dir": "./data",
+    "log_dir": "./logs"
+  },
+  "redis": {
+    "host": "localhost",
+    "port": 6379,
+    "password": "",
+    "db": 0,
+    "key_prefix": "funding_bot:"
+  },
+  "notification": {
+    "telegram": {
+      "enabled": false
+    }
+  }
+} 
