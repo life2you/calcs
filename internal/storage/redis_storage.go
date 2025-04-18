@@ -7,9 +7,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/life2you_mini/fundingarb/internal/exchange"
-	"github.com/life2you_mini/fundingarb/internal/model"
-	"github.com/redis/go-redis/v8"
+	"github.com/life2you_mini/calcs/internal/exchange"
+	"github.com/life2you_mini/calcs/internal/model"
 	"go.uber.org/zap"
 )
 

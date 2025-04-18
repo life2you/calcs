@@ -12,8 +12,8 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-	"github.com/life2you_mini/fundingarb/internal/config"
-	"github.com/life2you_mini/fundingarb/internal/services"
+	"github.com/life2you_mini/calcs/internal/config"
+	"github.com/life2you_mini/calcs/internal/services"
 )
 
 var (
@@ -48,7 +48,7 @@ func main() {
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
 
 	// 创建服务
-	service, err := services.NewFundingArbService(ctx, cfg, logger)
+	service, err := services.NewcalcsService(ctx, cfg, logger)
 	if err != nil {
 		logger.Fatal("创建服务失败", zap.Error(err))
 	}

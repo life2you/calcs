@@ -11,9 +11,9 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
-	"github.com/life2you_mini/fundingarb/internal/config"
-	"github.com/life2you_mini/fundingarb/internal/exchange"
-	"github.com/life2you_mini/fundingarb/internal/storage"
+	"github.com/life2you_mini/calcs/internal/config"
+	"github.com/life2you_mini/calcs/internal/exchange"
+	"github.com/life2you_mini/calcs/internal/storage"
 )
 
 const (
@@ -414,66 +414,145 @@ func adjustToMinLot(size float64, minLot float64) float64 {
 
 // executeTradeDecision 执行交易决策
 func (t *Trader) executeTradeDecision(ctx context.Context, decision *TradeDecision) (*TradeResult, error) {
-	// TODO: 实现交易执行逻辑
-	// 1. 设置杠杆
-	// 2. 执行合约交易（多/空）
-	// 3. 执行现货交易（买/卖）
-	// 4. 验证交易结果
-	// 5. 创建持仓记录
+	t.logger.Info("开始执行交易决策", zap.Any("decision", decision))
 
-	// 临时实现，仅记录交易决策但不实际执行
-	t.logger.Info("模拟执行交易决策",
-		zap.String("exchange", decision.Opportunity.Exchange),
-		zap.String("symbol", decision.Opportunity.Symbol),
-		zap.String("action", decision.Action),
-		zap.Float64("contract_size", decision.ContractSize),
-		zap.Float64("spot_size", decision.SpotSize),
-		zap.Int("leverage", decision.Leverage))
-
-	// 创建模拟交易结果
-	now := time.Now()
-	position := &Position{
-		ID:               "sim_" + fmt.Sprintf("%d", now.UnixNano()),
-		Exchange:         decision.Opportunity.Exchange,
-		Symbol:           decision.Opportunity.Symbol,
-		Direction:        decision.Opportunity.Direction,
-		ContractSize:     decision.ContractSize,
-		SpotSize:         decision.SpotSize,
-		EntryPrice:       decision.EntryPrice,
-		Leverage:         decision.Leverage,
-		OpenTime:         now,
-		LastUpdateTime:   now,
-		ContractOrderID:  "simulated",
-		SpotOrderID:      "simulated",
-		FundingCollected: 0,
-		Status:           StatusOpen,
+	// 获取交易所客户端
+	ex, found := t.exchangeFactory.Get(decision.Exchange)
+	if !found {
+		return &TradeResult{Success: false, FailReason: "不支持的交易所"}, fmt.Errorf("不支持的交易所: %s", decision.Exchange)
 	}
 
-	result := &TradeResult{
-		Decision:      *decision,
-		Position:      position,
-		Success:       true,
-		ExecutionTime: now,
+	var contractOrderID, spotOrderID string
+	var contractErr, spotErr error
+	var finalPosition *Position // 用于存储最终创建的持仓
+
+	// --- 核心交易逻辑 ---
+	defer func() {
+		// 无论成功失败，都尝试记录或更新持仓状态
+		if finalPosition != nil {
+			err := t.positionManager.SavePosition(ctx, finalPosition)
+			if err != nil {
+				t.logger.Error("保存最终持仓状态失败", zap.String("position_id", finalPosition.ID), zap.Error(err))
+			}
+		}
+	}()
+
+	// 1. 设置杠杆 (仅开仓时需要)
+	if decision.Action == ActionOpen {
+		err := ex.SetLeverage(ctx, decision.Symbol, decision.Leverage)
+		if err != nil {
+			// 杠杆设置失败通常是严重问题，可能导致后续交易失败，直接返回错误
+			t.logger.Error("设置杠杆失败，取消交易", zap.Error(err), zap.String("symbol", decision.Symbol), zap.Int("leverage", decision.Leverage))
+			return &TradeResult{Success: false, FailReason: fmt.Sprintf("设置杠杆失败: %s", err.Error())}, err
+		}
 	}
 
-	// 在实际实现中，应当将持仓保存到数据库
-	// 现在只是模拟保存
-	t.logger.Info("模拟保存持仓记录", zap.String("position_id", position.ID))
+	// 2. 执行合约订单
+	// 注意：需要确定市价单还是限价单，这里假设是市价单 (price=0)
+	// TODO: 从 decision 中获取更详细的订单类型和价格
+	contractOrderID, contractErr = ex.CreateContractOrder(
+		ctx,
+		decision.Symbol,
+		decision.ContractSide,    // BUY or SELL
+		decision.ContractPosSide, // LONG or SHORT
+		"MARKET",                 // TODO: 支持限价单
+		decision.ContractSize,
+		0, // TODO: 支持限价单价格
+	)
+	if contractErr != nil {
+		t.logger.Error("执行合约订单失败", zap.Error(contractErr), zap.Any("decision", decision))
+		// 合约失败，无需执行现货，直接返回失败
+		return &TradeResult{Success: false, FailReason: fmt.Sprintf("合约下单失败: %s", contractErr.Error())}, contractErr
+	}
+	t.logger.Info("合约订单成功", zap.String("orderID", contractOrderID))
 
-	return result, nil
+	// --- 合约成功，尝试执行现货 ---
+
+	// 3. 执行现货对冲订单
+	spotOrderID, spotErr = ex.CreateSpotOrder(
+		ctx,
+		decision.Symbol,
+		decision.SpotSide, // BUY or SELL
+		"MARKET",          // TODO: 支持限价单
+		decision.SpotSize,
+		0, // TODO: 支持限价单价格
+	)
+
+	if spotErr != nil {
+		t.logger.Error("执行现货对冲订单失败", zap.Error(spotErr), zap.Any("decision", decision))
+		// --- !!! 现货失败，需要回滚合约 !!! ---
+		t.logger.Warn("现货下单失败，尝试回滚合约订单", zap.String("contractOrderID", contractOrderID))
+
+		// TODO: 实现回滚逻辑: 查询合约订单成交情况，然后下反向市价单平仓
+		// rollbackErr := t.rollbackContractOrder(ctx, ex, decision.Symbol, contractOrderID, decision.ContractSize, decision.ContractPosSide)
+		// if rollbackErr != nil {
+		// 	t.logger.Error("回滚合约订单失败", zap.Error(rollbackErr), zap.String("contractOrderID", contractOrderID))
+		// 	// 即使回滚失败，也要报告原始错误
+		// }
+
+		// 记录持仓为失败状态（即使回滚可能失败，也标记问题）
+		posID := fmt.Sprintf("%s-%s-%d", decision.Exchange, decision.Symbol, time.Now().UnixNano())
+		finalPosition = &Position{
+			ID:              posID,
+			Exchange:        decision.Exchange,
+			Symbol:          decision.Symbol,
+			ContractOrderID: contractOrderID,
+			SpotOrderID:     "FAILED", // 标记现货失败
+			Status:          "FAILED_HEDGE",
+			// ... 其他字段可以根据需要填充默认值 ...
+			CreatedAt:     time.Now(),
+			LastUpdatedAt: time.Now(),
+		}
+
+		return &TradeResult{Success: false, FailReason: fmt.Sprintf("现货对冲失败: %s (合约订单 %s 可能已部分执行)", spotErr.Error(), contractOrderID), Position: finalPosition}, spotErr
+	}
+	t.logger.Info("现货对冲订单成功", zap.String("orderID", spotOrderID))
+
+	// --- 双边成功 ---
+
+	// 4. 创建持仓记录
+	// TODO: 获取订单的实际成交价格和手续费，这里暂时使用决策价格和默认值
+	posID := fmt.Sprintf("%s-%s-%d", decision.Exchange, decision.Symbol, time.Now().UnixNano())
+	finalPosition = &Position{
+		ID:                 posID,
+		Exchange:           decision.Exchange,
+		Symbol:             decision.Symbol,
+		Direction:          decision.ContractPosSide, // 持仓方向与合约方向一致
+		ContractOrderID:    contractOrderID,
+		SpotOrderID:        spotOrderID,
+		ContractEntrySize:  decision.ContractSize,
+		SpotEntrySize:      decision.SpotSize,
+		ContractEntryPrice: 0, // TODO: 获取实际成交价
+		SpotEntryPrice:     0, // TODO: 获取实际成交价
+		Leverage:           decision.Leverage,
+		Status:             StatusOpen, // 初始状态为 Open
+		CreatedAt:          time.Now(),
+		LastUpdatedAt:      time.Now(),
+		InitialFundingRate: decision.FundingRate, // 记录开仓时的资金费率
+	}
+
+	t.logger.Info("双边下单成功，创建持仓记录", zap.String("position_id", finalPosition.ID))
+
+	return &TradeResult{Success: true, Position: finalPosition}, nil
 }
 
 // addToRiskMonitoringQueue 将持仓添加到风险监控队列
 func (t *Trader) addToRiskMonitoringQueue(ctx context.Context, position *Position) error {
-	// 序列化持仓数据
-	positionData, err := json.Marshal(position)
+	// 将持仓数据序列化为JSON
+	positionJSON, err := json.Marshal(position)
 	if err != nil {
 		return fmt.Errorf("序列化持仓数据失败: %w", err)
 	}
 
-	// 添加到风险监控队列
-	// TODO: 在实际实现中，使用Redis队列服务
-	t.logger.Info("模拟将持仓添加到风险监控队列", zap.String("position_id", position.ID))
+	// 将持仓数据推送到Redis队列
+	if err := t.redisClient.Client().LPush(ctx, QueueRiskMonitoring, positionJSON).Err(); err != nil {
+		return fmt.Errorf("推送持仓到风险监控队列失败: %w", err)
+	}
+
+	t.logger.Debug("持仓已添加到风险监控队列",
+		zap.String("position_id", position.ID),
+		zap.String("symbol", position.Symbol),
+		zap.String("exchange", position.Exchange))
 
 	return nil
 }

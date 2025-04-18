@@ -8,15 +8,15 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
-	"github.com/life2you_mini/fundingarb/internal/config"
-	"github.com/life2you_mini/fundingarb/internal/exchange"
-	"github.com/life2you_mini/fundingarb/internal/monitor"
-	"github.com/life2you_mini/fundingarb/internal/redis"
-	"github.com/life2you_mini/fundingarb/internal/trading"
+	"github.com/life2you_mini/calcs/internal/config"
+	"github.com/life2you_mini/calcs/internal/exchange"
+	"github.com/life2you_mini/calcs/internal/monitor"
+	"github.com/life2you_mini/calcs/internal/redis"
+	"github.com/life2you_mini/calcs/internal/trading"
 )
 
-// FundingArbService 资金费率套利服务
-type FundingArbService struct {
+// calcsService 资金费率套利服务
+type calcsService struct {
 	ctx             context.Context
 	cancel          context.CancelFunc
 	logger          *zap.Logger
@@ -26,12 +26,12 @@ type FundingArbService struct {
 	trader          *trading.Trader
 }
 
-// NewFundingArbService 创建新的资金费率套利服务
-func NewFundingArbService(
+// NewcalcsService 创建新的资金费率套利服务
+func NewcalcsService(
 	parentCtx context.Context,
 	cfg *config.Config,
 	logger *zap.Logger,
-) (*FundingArbService, error) {
+) (*calcsService, error) {
 	// 创建服务上下文
 	ctx, cancel := context.WithCancel(parentCtx)
 
@@ -98,7 +98,7 @@ func NewFundingArbService(
 		exchangeFactory,
 	)
 
-	return &FundingArbService{
+	return &calcsService{
 		ctx:             ctx,
 		cancel:          cancel,
 		logger:          logger,
@@ -110,7 +110,7 @@ func NewFundingArbService(
 }
 
 // Start 启动服务
-func (s *FundingArbService) Start() {
+func (s *calcsService) Start() {
 	s.logger.Info("启动资金费率套利服务")
 
 	// 启动资金费率监控
@@ -129,7 +129,7 @@ func (s *FundingArbService) Start() {
 }
 
 // Stop 停止服务
-func (s *FundingArbService) Stop(ctx context.Context) error {
+func (s *calcsService) Stop(ctx context.Context) error {
 	s.logger.Info("停止资金费率套利服务")
 
 	// 停止交易执行器

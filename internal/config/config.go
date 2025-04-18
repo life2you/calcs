@@ -3,8 +3,6 @@ package config
 import (
 	"fmt"
 	"io/ioutil"
-	"os"
-	"time"
 
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"

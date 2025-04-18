@@ -15,9 +15,15 @@ type FundingRateData struct {
 	Timestamp       time.Time `json:"timestamp"`
 }
 
-// Exchange 交易所接口
+// CalculateYearlyRate 计算年化收益率
+// 资金费率通常每8小时结算一次，一年约有365*3=1095次
+func CalculateYearlyRate(fundingRate float64) float64 {
+	return fundingRate * 1095 * 100 // 转为百分比形式
+}
+
+// Exchange 交易所接口定义
 type Exchange interface {
-	// 基础信息
+	// GetExchangeName 获取交易所名称
 	GetExchangeName() string
 
 	// 资金费率相关
@@ -32,32 +38,31 @@ type Exchange interface {
 	SetLeverage(ctx context.Context, symbol string, leverage int) error
 	CreateContractOrder(ctx context.Context, symbol string, side string, positionSide string, orderType string, quantity float64, price float64) (string, error)
 	CreateSpotOrder(ctx context.Context, symbol string, side string, orderType string, quantity float64, price float64) (string, error)
+
+	// GetBalance 获取账户资产余额
+	GetBalance(ctx context.Context, asset string) (float64, error)
+
+	// PlaceOrder 下单
+	PlaceOrder(ctx context.Context, symbol, side, orderType string, quantity, price float64) (string, error)
+
+	// GetOrderStatus 获取订单状态
+	GetOrderStatus(ctx context.Context, symbol, orderID string) (string, error)
+
+	// CancelOrder 取消订单
+	// CancelOrder(ctx context.Context, symbol, orderID string) error
 }
 
-// CalculateYearlyRate 计算年化收益率
-// 资金费率通常每8小时结算一次，一年约有365*3=1095次
-func CalculateYearlyRate(fundingRate float64) float64 {
-	return fundingRate * 1095 * 100 // 转为百分比形式
-}
-
-// ExchangeFactory 交易所工厂，用于创建支持的交易所实例
+// ExchangeFactory 交易所工厂
 type ExchangeFactory struct {
 	exchanges map[string]Exchange
 }
 
-// NewExchangeFactory 创建交易所工厂
-func NewExchangeFactory() *ExchangeFactory {
-	return &ExchangeFactory{
-		exchanges: make(map[string]Exchange),
-	}
-}
-
-// Register 注册交易所实例
+// Register 注册交易所实例到工厂
 func (f *ExchangeFactory) Register(name string, exchange Exchange) {
 	f.exchanges[name] = exchange
 }
 
-// Get 获取交易所实例
+// Get 根据交易所名称获取交易所客户端
 func (f *ExchangeFactory) Get(name string) (Exchange, bool) {
 	exchange, exists := f.exchanges[name]
 	return exchange, exists
@@ -65,9 +70,16 @@ func (f *ExchangeFactory) Get(name string) (Exchange, bool) {
 
 // GetAll 获取所有交易所实例
 func (f *ExchangeFactory) GetAll() []Exchange {
-	var result []Exchange
+	result := make([]Exchange, 0, len(f.exchanges))
 	for _, exchange := range f.exchanges {
 		result = append(result, exchange)
 	}
 	return result
+}
+
+// NewExchangeFactory 创建新的交易所工厂
+func NewExchangeFactory() *ExchangeFactory {
+	return &ExchangeFactory{
+		exchanges: make(map[string]Exchange),
+	}
 }

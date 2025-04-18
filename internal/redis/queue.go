@@ -4,9 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/redis/go-redis/v9"
 	"time"
-
-	"github.com/redis/go-redis/v8"
 )
 
 // 队列常量
@@ -99,7 +98,7 @@ func (q *QueueService) PushTaskWithPriority(ctx context.Context, queue string, t
 	}
 
 	priorityQueueKey := q.getPriorityQueueKey(queue)
-	return q.client.ZAdd(ctx, priorityQueueKey, &redis.Z{
+	return q.client.ZAdd(ctx, priorityQueueKey, redis.Z{
 		Score:  priority,
 		Member: taskData,
 	}).Err()
@@ -170,7 +169,7 @@ func (q *QueueService) PushDelayedTask(ctx context.Context, queue string, task i
 	executeAt := float64(time.Now().Add(delay).Unix())
 	delayedQueueKey := q.getDelayedQueueKey(queue)
 
-	return q.client.ZAdd(ctx, delayedQueueKey, &redis.Z{
+	return q.client.ZAdd(ctx, delayedQueueKey, redis.Z{
 		Score:  executeAt,
 		Member: taskData,
 	}).Err()
@@ -235,11 +234,3 @@ func (q *QueueService) MoveReadyTasksToQueue(ctx context.Context, delayedQueue, 
 
 	return len(tasks), nil
 }
-
-// QueueNames 定义系统中使用的队列名称
-const (
-	QueueMonitorTasks       = "funding_bot:monitor_tasks"
-	QueueTradeOpportunities = "funding_bot:trade_opportunities"
-	QueueRiskMonitoring     = "funding_bot:risk_monitoring"
-	QueueNotifications      = "funding_bot:notifications"
-)

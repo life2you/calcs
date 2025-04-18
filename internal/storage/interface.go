@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/life2you_mini/fundingarb/internal/exchange"
-	"github.com/life2you_mini/fundingarb/internal/model"
+	"github.com/life2you_mini/calcs/internal/exchange"
+	"github.com/life2you_mini/calcs/internal/model"
 )
 
 // 存储类型常量

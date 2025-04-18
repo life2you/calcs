@@ -4,9 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/redis/go-redis/v9"
 	"time"
-
-	"github.com/redis/go-redis/v8"
 )
 
 // 业务队列名称常量

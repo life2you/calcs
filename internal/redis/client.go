@@ -2,9 +2,8 @@ package redis
 
 import (
 	"context"
+	"github.com/redis/go-redis/v9"
 	"time"
-
-	"github.com/redis/go-redis/v8"
 )
 
 // ClientOptions Redis客户端配置选项

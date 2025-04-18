@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/shopspring/decimal"
 	"go.uber.org/zap"
 )
 
