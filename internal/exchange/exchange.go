@@ -15,6 +15,30 @@ type FundingRateData struct {
 	Timestamp       time.Time `json:"timestamp"`
 }
 
+// DepthLevel 市场深度中的一个价格档位
+type DepthLevel struct {
+	Price    float64 `json:"price"`
+	Quantity float64 `json:"quantity"`
+}
+
+// MarketDepth 市场深度数据
+type MarketDepth struct {
+	Symbol string       `json:"symbol"`
+	Bids   []DepthLevel `json:"bids"`
+	Asks   []DepthLevel `json:"asks"`
+}
+
+// Position 持仓数据
+type Position struct {
+	Exchange   string    `json:"exchange"`
+	Symbol     string    `json:"symbol"`
+	PositionID string    `json:"position_id"`
+	Side       string    `json:"side"` // LONG, SHORT
+	Size       float64   `json:"size"`
+	PnL        float64   `json:"pnl"`
+	Timestamp  time.Time `json:"timestamp"`
+}
+
 // CalculateYearlyRate 计算年化收益率
 // 资金费率通常每8小时结算一次，一年约有365*3=1095次
 func CalculateYearlyRate(fundingRate float64) float64 {

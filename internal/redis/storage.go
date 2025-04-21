@@ -4,8 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/redis/go-redis/v9"
 	"time"
+
+	"github.com/redis/go-redis/v9"
 )
 
 // 业务队列名称常量
@@ -199,7 +200,6 @@ func (s *StorageClient) AddToRiskMonitoringQueue(ctx context.Context, position i
 
 // GetPositionForRiskMonitoring 从风险监控队列获取持仓
 func (s *StorageClient) GetPositionForRiskMonitoring(ctx context.Context, timeout time.Duration) ([]byte, error) {
-	// 使用队列服务的PopTask方法
 	return s.queueService.PopTask(ctx, QueueRiskMonitoring, timeout)
 }
 
@@ -217,12 +217,63 @@ func (s *StorageClient) GetPositionForRiskMonitoringStr(ctx context.Context, tim
 
 // SetLock 设置分布式锁
 func (s *StorageClient) SetLock(ctx context.Context, lockKey string, value string, expiration time.Duration) (bool, error) {
-	// 使用CreateLock方法
-	return CreateLock(s.client, lockKey, value, expiration)
+	return CreateLock(s.client, s.keyPrefix+lockKey, value, expiration)
 }
 
 // ReleaseLock 释放分布式锁
 func (s *StorageClient) ReleaseLock(ctx context.Context, lockKey string, value string) (bool, error) {
-	// 使用ReleaseLock方法
-	return ReleaseLock(s.client, lockKey, value)
+	return ReleaseLock(s.client, s.keyPrefix+lockKey, value)
+}
+
+// 以下是为实现 monitor.RedisClientInterface 接口增加的方法
+
+// PushTask 将任务推送到队列
+func (s *StorageClient) PushTask(ctx context.Context, queueName string, task interface{}) error {
+	return s.queueService.PushTask(ctx, queueName, task)
+}
+
+// PushTaskWithPriority 将任务推送到队列（带优先级）
+func (s *StorageClient) PushTaskWithPriority(ctx context.Context, queueName string, task interface{}, priority int) error {
+	// 将 int 类型转换为 float64 类型
+	return s.queueService.PushTaskWithPriority(ctx, queueName, task, float64(priority))
+}
+
+// Set 设置键值对
+func (s *StorageClient) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error {
+	// 序列化值
+	var strValue string
+	switch v := value.(type) {
+	case string:
+		strValue = v
+	case []byte:
+		strValue = string(v)
+	default:
+		jsonBytes, err := json.Marshal(value)
+		if err != nil {
+			return fmt.Errorf("序列化值失败: %w", err)
+		}
+		strValue = string(jsonBytes)
+	}
+
+	return s.client.Set(ctx, s.keyPrefix+key, strValue, expiration).Err()
+}
+
+// Get 获取键对应的值
+func (s *StorageClient) Get(ctx context.Context, key string) (string, error) {
+	return s.client.Get(ctx, s.keyPrefix+key).Result()
+}
+
+// GetJSON 获取键对应的值并解析为JSON
+func (s *StorageClient) GetJSON(ctx context.Context, key string, v interface{}) error {
+	strValue, err := s.Get(ctx, key)
+	if err != nil {
+		return err
+	}
+
+	return json.Unmarshal([]byte(strValue), v)
+}
+
+// Client 返回原始Redis客户端，用于实现 storage.RedisClient 接口
+func (s *StorageClient) Client() *redis.Client {
+	return s.client
 }

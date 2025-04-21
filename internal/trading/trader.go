@@ -45,7 +45,7 @@ type Trader struct {
 	cancel          context.CancelFunc
 	logger          *zap.Logger
 	config          *config.Config
-	redisClient     *storage.RedisClient
+	redisClient     storage.RedisClient
 	exchangeFactory *exchange.ExchangeFactory
 	positionManager *PositionManager
 	wg              sync.WaitGroup
@@ -58,7 +58,7 @@ func NewTrader(
 	parentCtx context.Context,
 	cfg *config.Config,
 	logger *zap.Logger,
-	redisClient *storage.RedisClient,
+	redisClient storage.RedisClient,
 	exchangeFactory *exchange.ExchangeFactory,
 ) *Trader {
 	ctx, cancel := context.WithCancel(parentCtx)
@@ -243,39 +243,33 @@ func (t *Trader) handleTradeOpportunity(ctx context.Context, opportunity *TradeO
 // makeTradeDecision 根据交易机会做出交易决策
 func (t *Trader) makeTradeDecision(ctx context.Context, opportunity *TradeOpportunity) (*TradeDecision, error) {
 	// 获取交易所客户端
-	ex, err := t.exchangeFactory.GetExchange(opportunity.Exchange)
-	if err != nil {
-		return nil, fmt.Errorf("获取交易所客户端失败: %w", err)
+	ex, exists := t.exchangeFactory.Get(opportunity.Exchange)
+	if !exists {
+		return nil, fmt.Errorf("获取交易所客户端失败: 不支持的交易所 %s", opportunity.Exchange)
 	}
 
 	// 验证资金费率是否仍然满足条件
-	currentRate, err := ex.GetFundingRate(ctx, opportunity.Symbol)
+	fundingData, err := ex.GetFundingRate(ctx, opportunity.Symbol)
 	if err != nil {
 		return nil, fmt.Errorf("获取最新资金费率失败: %w", err)
 	}
 
 	// 计算当前年化收益率
-	currentYearlyRate := exchange.CalculateYearlyRate(currentRate)
+	currentYearlyRate := fundingData.YearlyRate // 直接使用已计算的年化率
 	minRate := t.config.Trading.MinYearlyFundingRate
 
-	// 验证年化收益率是否仍然高于阈值
+	// 如果资金费率不再满足条件
 	if math.Abs(currentYearlyRate) < minRate {
 		t.logger.Info("资金费率不再满足条件",
 			zap.String("exchange", opportunity.Exchange),
 			zap.String("symbol", opportunity.Symbol),
-			zap.Float64("current_yearly_rate", currentYearlyRate),
-			zap.Float64("min_yearly_rate", minRate))
+			zap.Float64("current_rate", currentYearlyRate),
+			zap.Float64("min_rate", minRate))
 		return nil, nil
 	}
 
-	// 根据资金费率方向决定交易方向
-	direction := DirectionLong
-	if currentRate > 0 {
-		direction = DirectionShort
-	}
-
 	// 获取当前价格
-	currentPrice, err := ex.GetCurrentPrice(ctx, opportunity.Symbol)
+	currentPrice, err := ex.GetPrice(ctx, opportunity.Symbol)
 	if err != nil {
 		return nil, fmt.Errorf("获取当前价格失败: %w", err)
 	}
@@ -286,16 +280,30 @@ func (t *Trader) makeTradeDecision(ctx context.Context, opportunity *TradeOpport
 		return nil, fmt.Errorf("计算交易规模失败: %w", err)
 	}
 
-	// 如果计算出的交易规模为0，则不执行交易
+	// 检查是否有足够的资金交易
 	if contractSize <= 0 || spotSize <= 0 {
-		t.logger.Info("计算的交易规模过小，取消交易",
+		t.logger.Info("交易规模太小，不执行交易",
 			zap.String("exchange", opportunity.Exchange),
-			zap.String("symbol", opportunity.Symbol))
+			zap.String("symbol", opportunity.Symbol),
+			zap.Float64("contract_size", contractSize),
+			zap.Float64("spot_size", spotSize))
 		return nil, nil
 	}
 
-	// 估算预期收益
-	estimatedProfit := t.estimateProfit(currentRate, contractSize, currentPrice)
+	// 确定交易方向和合约侧
+	var contractSide, contractPosSide, spotSide string
+	if opportunity.Direction == DirectionLong {
+		contractSide = "BUY"
+		contractPosSide = "LONG"
+		spotSide = "BUY"
+	} else {
+		contractSide = "SELL"
+		contractPosSide = "SHORT"
+		spotSide = "SELL"
+	}
+
+	// 估算收益（使用FundingRate字段）
+	estimatedProfit := t.estimateProfit(fundingData.FundingRate, contractSize, currentPrice)
 
 	// 创建交易决策
 	decision := &TradeDecision{
@@ -307,6 +315,11 @@ func (t *Trader) makeTradeDecision(ctx context.Context, opportunity *TradeOpport
 		EstimatedProfit: estimatedProfit,
 		EntryPrice:      currentPrice,
 		Reason:          fmt.Sprintf("资金费率年化收益 %.2f%% 高于阈值 %.2f%%", currentYearlyRate, minRate),
+		// 设置新增字段
+		ContractSide:    contractSide,
+		ContractPosSide: contractPosSide,
+		SpotSide:        spotSide,
+		FundingRate:     fundingData.FundingRate,
 	}
 
 	t.logger.Info("生成交易决策",
@@ -328,8 +341,8 @@ func (t *Trader) calculateTradeSize(
 	symbol string,
 	price float64,
 ) (contractSize, spotSize float64, leverage int, err error) {
-	// 获取账户余额信息
-	balance, err := ex.GetAccountBalance(ctx)
+	// 获取账户余额
+	balance, err := ex.GetBalance(ctx, "USDT")
 	if err != nil {
 		return 0, 0, 0, fmt.Errorf("获取账户余额失败: %w", err)
 	}
@@ -340,8 +353,12 @@ func (t *Trader) calculateTradeSize(
 	maxLeverage := t.config.Trading.MaxLeverage
 
 	// 计算最大可用资金（考虑账户使用限制和单个头寸限制）
-	maxUsableFunds := balance.AvailableUSDT * accountUsageLimit
-	maxPositionFunds := balance.TotalUSDT * maxPositionSizePercent
+	// 直接使用 balance 作为可用余额，因为 GetBalance 返回的是 float64
+	availableUSDT := balance * 0.95 // 假设可用余额是总余额的95%
+	totalUSDT := balance
+
+	maxUsableFunds := availableUSDT * accountUsageLimit
+	maxPositionFunds := totalUSDT * maxPositionSizePercent
 
 	// 取较小值作为实际可用资金
 	availableFunds := math.Min(maxUsableFunds, maxPositionFunds)
@@ -416,10 +433,14 @@ func adjustToMinLot(size float64, minLot float64) float64 {
 func (t *Trader) executeTradeDecision(ctx context.Context, decision *TradeDecision) (*TradeResult, error) {
 	t.logger.Info("开始执行交易决策", zap.Any("decision", decision))
 
-	// 获取交易所客户端
-	ex, found := t.exchangeFactory.Get(decision.Exchange)
-	if !found {
-		return &TradeResult{Success: false, FailReason: "不支持的交易所"}, fmt.Errorf("不支持的交易所: %s", decision.Exchange)
+	// 获取交易所实例
+	ex, exists := t.exchangeFactory.Get(decision.Opportunity.Exchange)
+	if !exists {
+		return &TradeResult{
+			Decision:   *decision,
+			Success:    false,
+			FailReason: fmt.Sprintf("获取交易所实例失败: 不支持的交易所 %s", decision.Opportunity.Exchange),
+		}, nil
 	}
 
 	var contractOrderID, spotOrderID string
@@ -439,10 +460,10 @@ func (t *Trader) executeTradeDecision(ctx context.Context, decision *TradeDecisi
 
 	// 1. 设置杠杆 (仅开仓时需要)
 	if decision.Action == ActionOpen {
-		err := ex.SetLeverage(ctx, decision.Symbol, decision.Leverage)
+		err := ex.SetLeverage(ctx, decision.Opportunity.Symbol, decision.Leverage)
 		if err != nil {
 			// 杠杆设置失败通常是严重问题，可能导致后续交易失败，直接返回错误
-			t.logger.Error("设置杠杆失败，取消交易", zap.Error(err), zap.String("symbol", decision.Symbol), zap.Int("leverage", decision.Leverage))
+			t.logger.Error("设置杠杆失败，取消交易", zap.Error(err), zap.String("symbol", decision.Opportunity.Symbol), zap.Int("leverage", decision.Leverage))
 			return &TradeResult{Success: false, FailReason: fmt.Sprintf("设置杠杆失败: %s", err.Error())}, err
 		}
 	}
@@ -452,7 +473,7 @@ func (t *Trader) executeTradeDecision(ctx context.Context, decision *TradeDecisi
 	// TODO: 从 decision 中获取更详细的订单类型和价格
 	contractOrderID, contractErr = ex.CreateContractOrder(
 		ctx,
-		decision.Symbol,
+		decision.Opportunity.Symbol,
 		decision.ContractSide,    // BUY or SELL
 		decision.ContractPosSide, // LONG or SHORT
 		"MARKET",                 // TODO: 支持限价单
@@ -471,7 +492,7 @@ func (t *Trader) executeTradeDecision(ctx context.Context, decision *TradeDecisi
 	// 3. 执行现货对冲订单
 	spotOrderID, spotErr = ex.CreateSpotOrder(
 		ctx,
-		decision.Symbol,
+		decision.Opportunity.Symbol,
 		decision.SpotSide, // BUY or SELL
 		"MARKET",          // TODO: 支持限价单
 		decision.SpotSize,
@@ -491,11 +512,11 @@ func (t *Trader) executeTradeDecision(ctx context.Context, decision *TradeDecisi
 		// }
 
 		// 记录持仓为失败状态（即使回滚可能失败，也标记问题）
-		posID := fmt.Sprintf("%s-%s-%d", decision.Exchange, decision.Symbol, time.Now().UnixNano())
+		posID := fmt.Sprintf("%s-%s-%d", decision.Opportunity.Exchange, decision.Opportunity.Symbol, time.Now().UnixNano())
 		finalPosition = &Position{
 			ID:              posID,
-			Exchange:        decision.Exchange,
-			Symbol:          decision.Symbol,
+			Exchange:        decision.Opportunity.Exchange,
+			Symbol:          decision.Opportunity.Symbol,
 			ContractOrderID: contractOrderID,
 			SpotOrderID:     "FAILED", // 标记现货失败
 			Status:          "FAILED_HEDGE",
@@ -512,11 +533,11 @@ func (t *Trader) executeTradeDecision(ctx context.Context, decision *TradeDecisi
 
 	// 4. 创建持仓记录
 	// TODO: 获取订单的实际成交价格和手续费，这里暂时使用决策价格和默认值
-	posID := fmt.Sprintf("%s-%s-%d", decision.Exchange, decision.Symbol, time.Now().UnixNano())
+	posID := fmt.Sprintf("%s-%s-%d", decision.Opportunity.Exchange, decision.Opportunity.Symbol, time.Now().UnixNano())
 	finalPosition = &Position{
 		ID:                 posID,
-		Exchange:           decision.Exchange,
-		Symbol:             decision.Symbol,
+		Exchange:           decision.Opportunity.Exchange,
+		Symbol:             decision.Opportunity.Symbol,
 		Direction:          decision.ContractPosSide, // 持仓方向与合约方向一致
 		ContractOrderID:    contractOrderID,
 		SpotOrderID:        spotOrderID,

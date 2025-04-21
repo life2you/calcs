@@ -5,13 +5,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
 	"github.com/life2you_mini/calcs/internal/config"
 	"github.com/life2you_mini/calcs/internal/exchange"
 	"github.com/life2you_mini/calcs/internal/monitor"
-	"github.com/life2you_mini/calcs/internal/redis"
+	_redisClient "github.com/life2you_mini/calcs/internal/redis"
 	"github.com/life2you_mini/calcs/internal/trading"
 )
 
@@ -21,7 +20,7 @@ type calcsService struct {
 	cancel          context.CancelFunc
 	logger          *zap.Logger
 	exchangeFactory *exchange.ExchangeFactory
-	redisClient     *redis.StorageClient
+	redisClient     *_redisClient.StorageClient
 	fundingMonitor  *monitor.FundingRateMonitor
 	trader          *trading.Trader
 }
@@ -37,7 +36,7 @@ func NewcalcsService(
 
 	// 初始化Redis客户端封装
 	redisAddr := fmt.Sprintf("%s:%d", cfg.Redis.Host, cfg.Redis.Port)
-	redisClient, err := redis.NewStorageClient(
+	redisClient, err := _redisClient.NewStorageClient(
 		redisAddr,
 		cfg.Redis.Password,
 		cfg.Redis.DB,
@@ -73,7 +72,9 @@ func NewcalcsService(
 	// 获取所有已注册的交易所
 	exchanges := make([]monitor.ExchangeAPI, 0)
 	for _, exchange := range exchangeFactory.GetAll() {
-		exchanges = append(exchanges, exchange)
+		// 使用适配器将 exchange.Exchange 转换为 monitor.ExchangeAPI
+		adapter := NewExchangeAdapter(exchange)
+		exchanges = append(exchanges, adapter)
 	}
 
 	// 创建资金费率监控器
@@ -82,7 +83,7 @@ func NewcalcsService(
 		logger,
 		cfg.Trading.MinYearlyFundingRate,
 		cfg.Trading.AllowedSymbols,
-		redisClient,
+		NewRedisStorageAdapter(redisClient),
 	)
 
 	// 设置检查间隔

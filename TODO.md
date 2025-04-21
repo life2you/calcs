@@ -106,6 +106,32 @@
 - [x] 持仓风险监控集成
 - [x] 风险缓解建议生成
 
+## 代码结构修复
+
+- [x] 解决 `FundingRateData` 类型重复定义问题
+- [x] 修复 `Position` 结构体重复定义问题
+- [x] 修正 `RedisClient` 接口使用错误
+- [x] 添加缺失的 `PopFromTradeQueue` 方法定义
+- [x] 修复 `ClosePosition` 函数中的类型错误
+
+## 待修复的问题
+
+- [X] 完成 `trader.go` 中的剩余错误修复：
+  - [X] 删除或使用未使用的变量（如 `direction`）
+  - [X] 添加缺失的字段到 `TradeDecision` 结构体
+  - [X] 修正 `GetBalance` 返回值的处理
+  - [X] 修复 `exchangeFactory.Get` 和其他方法的调用
+
+- [ ] 修复其他包中的编译错误：
+  - [ ] 解决 `services` 包中的接口兼容性问题
+  - [ ] 修复 `risk` 包中的字段访问错误
+
+## 功能增强
+
+- [ ] 完善错误处理机制
+- [ ] 添加详细日志
+- [ ] 实现错误恢复策略
+
 # 待办事项
 
-- [ ] 修复 `internal/exchange/binance.go` 中的编译错误 (需要确认 ccxt 库函数签名) 
+- [ ] 修复 `internal/exchange/binance.go` 中的编译错误 (需要确认 ccxt 库函数签名)

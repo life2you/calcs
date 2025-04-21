@@ -8,36 +8,40 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/redis/go-redis/v9"
+
 	"go.uber.org/zap"
 )
 
 // Position 持仓模型
 type Position struct {
-	ID                 string    `json:"id"`                   // 持仓ID
-	Exchange           string    `json:"exchange"`             // 交易所
-	Symbol             string    `json:"symbol"`               // 交易对
-	Direction          string    `json:"direction"`            // 持仓方向 (LONG 或 SHORT)
-	ContractOrderID    string    `json:"contract_order_id"`    // 合约订单ID
-	SpotOrderID        string    `json:"spot_order_id"`        // 现货订单ID
-	ContractEntrySize  float64   `json:"contract_entry_size"`  // 合约入场数量
-	SpotEntrySize      float64   `json:"spot_entry_size"`      // 现货入场数量
-	ContractEntryPrice float64   `json:"contract_entry_price"` // 合约入场价格
-	SpotEntryPrice     float64   `json:"spot_entry_price"`     // 现货入场价格
-	ContractExitPrice  float64   `json:"contract_exit_price"`  // 合约平仓价格
-	SpotExitPrice      float64   `json:"spot_exit_price"`      // 现货平仓价格
-	ContractExitSize   float64   `json:"contract_exit_size"`   // 合约平仓数量
-	SpotExitSize       float64   `json:"spot_exit_size"`       // 现货平仓数量
-	Leverage           int       `json:"leverage"`             // 杠杆倍数
-	Status             string    `json:"status"`               // 持仓状态
-	CreatedAt          time.Time `json:"created_at"`           // 创建时间
-	LastUpdatedAt      time.Time `json:"last_updated_at"`      // 最后更新时间
-	LastRiskCheckTime  time.Time `json:"last_risk_check_time"` // 最后风险检查时间
-	LastRiskLevel      string    `json:"last_risk_level"`      // 最后风险等级
-	InitialFundingRate float64   `json:"initial_funding_rate"` // 开仓时的资金费率
-	TotalFundingFee    float64   `json:"total_funding_fee"`    // 累计资金费用
-	PnL                float64   `json:"pnl"`                  // 当前盈亏
-	RealizePnL         float64   `json:"realize_pnl"`          // 已实现盈亏
-	CloseReason        string    `json:"close_reason"`         // 平仓原因
+	ID                 string     `json:"id"`                    // 持仓ID
+	Exchange           string     `json:"exchange"`              // 交易所
+	Symbol             string     `json:"symbol"`                // 交易对
+	Direction          string     `json:"direction"`             // 持仓方向 (LONG 或 SHORT)
+	ContractOrderID    string     `json:"contract_order_id"`     // 合约订单ID
+	SpotOrderID        string     `json:"spot_order_id"`         // 现货订单ID
+	ContractEntrySize  float64    `json:"contract_entry_size"`   // 合约入场数量
+	SpotEntrySize      float64    `json:"spot_entry_size"`       // 现货入场数量
+	ContractEntryPrice float64    `json:"contract_entry_price"`  // 合约入场价格
+	SpotEntryPrice     float64    `json:"spot_entry_price"`      // 现货入场价格
+	ContractExitPrice  float64    `json:"contract_exit_price"`   // 合约平仓价格
+	SpotExitPrice      float64    `json:"spot_exit_price"`       // 现货平仓价格
+	ContractExitSize   float64    `json:"contract_exit_size"`    // 合约平仓数量
+	SpotExitSize       float64    `json:"spot_exit_size"`        // 现货平仓数量
+	Leverage           int        `json:"leverage"`              // 杠杆倍数
+	Status             string     `json:"status"`                // 持仓状态
+	CreatedAt          time.Time  `json:"created_at"`            // 创建时间
+	LastUpdatedAt      time.Time  `json:"last_updated_at"`       // 最后更新时间
+	LastRiskCheckTime  time.Time  `json:"last_risk_check_time"`  // 最后风险检查时间
+	LastRiskLevel      string     `json:"last_risk_level"`       // 最后风险等级
+	InitialFundingRate float64    `json:"initial_funding_rate"`  // 开仓时的资金费率
+	TotalFundingFee    float64    `json:"total_funding_fee"`     // 累计资金费用
+	PnL                float64    `json:"pnl"`                   // 当前盈亏
+	RealizePnL         float64    `json:"realize_pnl"`           // 已实现盈亏
+	CloseReason        string     `json:"close_reason"`          // 平仓原因
+	CloseTime          *time.Time `json:"close_time,omitempty"`  // 平仓时间
+	ClosePrice         *float64   `json:"close_price,omitempty"` // 平仓价格
 }
 
 // PositionManager 持仓管理器
@@ -114,7 +118,7 @@ func (pm *PositionManager) ClosePosition(ctx context.Context, positionID string,
 	position.LastUpdatedAt = now
 	position.CloseTime = &now
 	position.ClosePrice = &closePrice
-	position.PnL = &pnl
+	position.PnL = pnl
 	position.RealizePnL = pnl
 	position.CloseReason = "Closed by user"
 

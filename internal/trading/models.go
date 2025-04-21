@@ -24,9 +24,14 @@ type TradeDecision struct {
 	EstimatedProfit float64          `json:"estimated_profit"`      // 预计利润
 	EntryPrice      float64          `json:"entry_price,omitempty"` // 执行价格
 	Reason          string           `json:"reason"`                // 决策理由
+	ContractSide    string           `json:"contract_side"`         // 合约交易方向，"BUY" 或 "SELL"
+	ContractPosSide string           `json:"contract_pos_side"`     // 合约持仓方向，"LONG" 或 "SHORT"
+	SpotSide        string           `json:"spot_side"`             // 现货交易方向，"BUY" 或 "SELL"
+	FundingRate     float64          `json:"funding_rate"`          // 开仓时的资金费率
 }
 
-// Position 代表一个持仓
+// Position 代表一个持仓 - 已移动到 position.go 文件中
+/*
 type Position struct {
 	ID               string     `json:"id"`                          // 持仓ID
 	Exchange         string     `json:"exchange"`                    // 交易所
@@ -47,6 +52,7 @@ type Position struct {
 	PnL              *float64   `json:"pnl,omitempty"`               // 盈亏
 	LiquidationPrice *float64   `json:"liquidation_price,omitempty"` // 预估清算价格
 }
+*/
 
 // OrderResult 代表订单执行结果
 type OrderResult struct {

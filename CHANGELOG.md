@@ -48,4 +48,23 @@
 - 再次尝试恢复使用 `map[string]interface{}` 作为参数，并调整类型转换和顺序，但仍遇到编译错误。
 - **结论:** 需要确认所使用的 `ccxt` 库的具体函数签名才能继续修复。
 
+## 20XX-XX-XX 代码结构优化
+
+### 修复
+- 解决了 `FundingRateData` 类型重复定义的问题，统一使用 `model.FundingRateData`
+- 修复了 `Position` 结构体重复定义问题，合并到 `position.go` 文件
+- 修正了接口使用错误，将指针类型 `*storage.RedisClient` 修改为接口类型 `storage.RedisClient`
+- 在 `RedisClient` 接口中添加了缺失的 `PopFromTradeQueue` 方法定义
+- 修复了 `ClosePosition` 函数中的类型错误，正确处理 `PnL` 字段
+- 修正了 `trader.go` 中对 Exchange 工厂的调用方式，使用 `Get` 而不是 `GetExchange`
+- 修复了 `trader.go` 中对 FundingRateData 字段的访问方式
+- 在 `TradeDecision` 结构体中添加了缺失的字段 (ContractSide, ContractPosSide, SpotSide, FundingRate)
+- 修复了未使用的 `direction` 变量问题，使用它来确定交易方向
+- 修正了 `balance` 的使用方式，适配 `GetBalance` 方法返回的 float64 类型
+- 修正了 `exchangeFactory.Get` 返回值的检查，使用返回的布尔值而不是错误检查
+
+### 待解决
+- `services` 包中的类型不匹配问题，包括 `ExchangeAPI` 接口实现和 `RedisClientInterface` 接口实现
+- `risk` 包中的字段错误，`Position` 结构体字段访问不正确
+
 (这里将记录每次代码的变动) 

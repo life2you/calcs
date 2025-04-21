@@ -7,7 +7,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/life2you_mini/calcs/internal/exchange"
+	"github.com/redis/go-redis/v9"
+
 	"github.com/life2you_mini/calcs/internal/model"
 	"go.uber.org/zap"
 )
@@ -92,7 +93,7 @@ func (s *RedisStorage) Health(ctx context.Context) error {
 }
 
 // StoreFundingRate 存储资金费率数据
-func (s *RedisStorage) StoreFundingRate(ctx context.Context, data *exchange.FundingRateData) error {
+func (s *RedisStorage) StoreFundingRate(ctx context.Context, data *model.FundingRateData) error {
 	// 将资金费率数据序列化为JSON
 	jsonData, err := json.Marshal(data)
 	if err != nil {
@@ -111,7 +112,7 @@ func (s *RedisStorage) StoreFundingRate(ctx context.Context, data *exchange.Fund
 	pipe.Set(ctx, key, jsonData, time.Duration(expiryFundingRate)*time.Second)
 
 	// 存储历史资金费率（使用有序集合，按时间戳排序）
-	pipe.ZAdd(ctx, historyKey, &redis.Z{
+	pipe.ZAdd(ctx, historyKey, redis.Z{
 		Score:  float64(data.Timestamp.Unix()),
 		Member: jsonData,
 	})
@@ -134,7 +135,7 @@ func (s *RedisStorage) StoreFundingRate(ctx context.Context, data *exchange.Fund
 }
 
 // GetFundingRates 获取指定交易所和交易对的资金费率数据
-func (s *RedisStorage) GetFundingRates(ctx context.Context, exchange, symbol string, limit int) ([]*exchange.FundingRateData, error) {
+func (s *RedisStorage) GetFundingRates(ctx context.Context, exchange, symbol string, limit int) ([]*model.FundingRateData, error) {
 	historyKey := keyFundingRateHistory + exchange + ":" + symbol
 
 	// 从有序集合中获取最近的N条记录
@@ -143,7 +144,7 @@ func (s *RedisStorage) GetFundingRates(ctx context.Context, exchange, symbol str
 		return nil, fmt.Errorf("获取资金费率历史数据失败: %w", err)
 	}
 
-	rates := make([]*exchange.FundingRateData, 0, len(results))
+	rates := make([]*model.FundingRateData, 0, len(results))
 	for _, result := range results {
 		jsonData, ok := result.Member.(string)
 		if !ok {
@@ -151,7 +152,7 @@ func (s *RedisStorage) GetFundingRates(ctx context.Context, exchange, symbol str
 			continue
 		}
 
-		var rate exchange.FundingRateData
+		var rate model.FundingRateData
 		if err := json.Unmarshal([]byte(jsonData), &rate); err != nil {
 			s.logger.Warn("解析资金费率数据失败", zap.Error(err), zap.String("data", jsonData))
 			continue
@@ -164,7 +165,7 @@ func (s *RedisStorage) GetFundingRates(ctx context.Context, exchange, symbol str
 }
 
 // GetAllFundingRates 获取所有交易所和交易对的最新资金费率
-func (s *RedisStorage) GetAllFundingRates(ctx context.Context, limit int) ([]*exchange.FundingRateData, error) {
+func (s *RedisStorage) GetAllFundingRates(ctx context.Context, limit int) ([]*model.FundingRateData, error) {
 	globalKey := keyFundingRateAll
 
 	// 获取所有资金费率数据
@@ -173,9 +174,9 @@ func (s *RedisStorage) GetAllFundingRates(ctx context.Context, limit int) ([]*ex
 		return nil, fmt.Errorf("获取所有资金费率数据失败: %w", err)
 	}
 
-	rates := make([]*exchange.FundingRateData, 0, len(results))
+	rates := make([]*model.FundingRateData, 0, len(results))
 	for _, jsonData := range results {
-		var rate exchange.FundingRateData
+		var rate model.FundingRateData
 		if err := json.Unmarshal([]byte(jsonData), &rate); err != nil {
 			s.logger.Warn("解析资金费率数据失败", zap.Error(err), zap.String("data", jsonData))
 			continue
@@ -220,7 +221,7 @@ func (s *RedisStorage) GetAverageFundingRate(ctx context.Context, exchange, symb
 	count := 0
 
 	for _, jsonData := range results {
-		var rate exchange.FundingRateData
+		var rate model.FundingRateData
 		if err := json.Unmarshal([]byte(jsonData), &rate); err != nil {
 			s.logger.Warn("解析资金费率数据失败", zap.Error(err), zap.String("data", jsonData))
 			continue
@@ -436,7 +437,7 @@ func (s *RedisStorage) StoreAccountTransaction(ctx context.Context, transaction 
 
 	// 生成键
 	key := keyAccountTxPrefix + transaction.ID
-	typeKey := keyAccountTxByType + transaction.TransactionType
+	typeKey := keyAccountTxByType + string(transaction.TransactionType)
 
 	// 使用Pipeline批量执行
 	pipe := s.client.Pipeline()
@@ -445,7 +446,7 @@ func (s *RedisStorage) StoreAccountTransaction(ctx context.Context, transaction 
 	pipe.Set(ctx, key, jsonData, time.Duration(expiryAccountTx)*time.Second)
 
 	// 将交易ID添加到类型集合中
-	pipe.ZAdd(ctx, typeKey, &redis.Z{
+	pipe.ZAdd(ctx, typeKey, redis.Z{
 		Score:  float64(transaction.Timestamp.Unix()),
 		Member: transaction.ID,
 	})
@@ -534,7 +535,7 @@ func (s *RedisStorage) StoreSystemLog(ctx context.Context, log *model.SystemLog)
 	pipe.Set(ctx, key, jsonData, time.Duration(expirySystemLog)*time.Second)
 
 	// 将日志ID添加到级别集合中
-	pipe.ZAdd(ctx, levelKey, &redis.Z{
+	pipe.ZAdd(ctx, levelKey, redis.Z{
 		Score:  float64(log.Timestamp.Unix()),
 		Member: log.ID,
 	})
@@ -609,7 +610,7 @@ func (s *RedisStorage) StoreRiskMetrics(ctx context.Context, metrics *model.Risk
 	pipe.Set(ctx, key, jsonData, time.Duration(expiryRiskMetrics)*time.Second)
 
 	// 将风险指标ID添加到持仓风险指标集合中
-	pipe.ZAdd(ctx, positionKey, &redis.Z{
+	pipe.ZAdd(ctx, positionKey, redis.Z{
 		Score:  float64(metrics.Timestamp.Unix()),
 		Member: metrics.ID,
 	})

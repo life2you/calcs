@@ -1,16 +1,16 @@
 # 交易所配置
 exchanges:
   binance:
-    enabled: true
+    enabled: false
     api_key: "你的币安API密钥"
     api_secret: "你的币安API密钥"
   okx:
-    enabled: true
+    enabled: false
     api_key: "你的OKX API密钥"
     api_secret: "你的OKX API密钥"
     passphrase: "你的OKX Passphrase"
   bitget:
-    enabled: true
+    enabled: false
     api_key: "你的Bitget API密钥"
     api_secret: "你的Bitget API密钥"
     passphrase: "你的Bitget Passphrase"
