@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"io/ioutil"
+	"os"
 
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
@@ -29,24 +30,24 @@ type ExchangesConfig struct {
 // BinanceConfig Binance配置
 type BinanceConfig struct {
 	Enabled   bool   `mapstructure:"enabled"`
-	APIKey    string `mapstructure:"-"` // 不从配置文件中读取
-	APISecret string `mapstructure:"-"` // 不从配置文件中读取
+	APIKey    string `mapstructure:"api_key"`    // 从配置文件中读取
+	APISecret string `mapstructure:"api_secret"` // 从配置文件中读取
 }
 
 // OKXConfig OKX配置
 type OKXConfig struct {
 	Enabled    bool   `mapstructure:"enabled"`
-	APIKey     string `mapstructure:"-"` // 不从配置文件中读取
-	APISecret  string `mapstructure:"-"` // 不从配置文件中读取
-	Passphrase string `mapstructure:"-"` // 不从配置文件中读取
+	APIKey     string `mapstructure:"api_key"`    // 从配置文件中读取
+	APISecret  string `mapstructure:"api_secret"` // 从配置文件中读取
+	Passphrase string `mapstructure:"passphrase"` // 从配置文件中读取
 }
 
 // BitgetConfig Bitget配置
 type BitgetConfig struct {
 	Enabled    bool   `mapstructure:"enabled"`
-	APIKey     string `mapstructure:"-"` // 不从配置文件中读取
-	APISecret  string `mapstructure:"-"` // 不从配置文件中读取
-	Passphrase string `mapstructure:"-"` // 不从配置文件中读取
+	APIKey     string `mapstructure:"api_key"`    // 从配置文件中读取
+	APISecret  string `mapstructure:"api_secret"` // 从配置文件中读取
+	Passphrase string `mapstructure:"passphrase"` // 从配置文件中读取
 }
 
 // TradingConfig 交易配置
@@ -97,7 +98,7 @@ type PostgresConfig struct {
 	Port           int    `mapstructure:"port"`
 	Database       string `mapstructure:"database"`
 	User           string `mapstructure:"user"`
-	Password       string `mapstructure:"-"` // 不从配置文件中读取
+	Password       string `mapstructure:"password"` // 从配置文件或环境变量中读取
 	MaxConnections int    `mapstructure:"max_connections"`
 	SSLMode        string `mapstructure:"ssl_mode"`
 }
@@ -110,12 +111,64 @@ type NotificationConfig struct {
 // TelegramConfig Telegram配置
 type TelegramConfig struct {
 	Enabled  bool   `mapstructure:"enabled"`
-	BotToken string `mapstructure:"-"` // 不从配置文件中读取
-	ChatID   string `mapstructure:"-"` // 不从配置文件中读取
+	BotToken string `mapstructure:"bot_token"` // 从配置文件或环境变量中读取
+	ChatID   string `mapstructure:"chat_id"`   // 从配置文件或环境变量中读取
 }
 
 // LoadConfig 从文件加载配置
 func LoadConfig(filePath string) (*Config, error) {
+	// 使用Viper读取配置
+	v := viper.New()
+	v.SetConfigFile(filePath)
+
+	// 读取配置文件
+	if err := v.ReadInConfig(); err != nil {
+		return nil, fmt.Errorf("读取配置文件失败: %w", err)
+	}
+
+	// 绑定环境变量（可选，如果需要从环境变量覆盖配置）
+	v.AutomaticEnv()
+	v.SetEnvPrefix("CALCS") // 环境变量前缀，如CALCS_BINANCE_API_KEY
+
+	// 特定环境变量映射，如果存在这些环境变量则优先使用
+	if binanceApiKey := os.Getenv("BINANCE_API_KEY"); binanceApiKey != "" {
+		v.Set("exchanges.binance.api_key", binanceApiKey)
+	}
+	if binanceApiSecret := os.Getenv("BINANCE_API_SECRET"); binanceApiSecret != "" {
+		v.Set("exchanges.binance.api_secret", binanceApiSecret)
+	}
+	if okxApiKey := os.Getenv("OKX_API_KEY"); okxApiKey != "" {
+		v.Set("exchanges.okx.api_key", okxApiKey)
+	}
+	if okxApiSecret := os.Getenv("OKX_API_SECRET"); okxApiSecret != "" {
+		v.Set("exchanges.okx.api_secret", okxApiSecret)
+	}
+	if okxPassphrase := os.Getenv("OKX_PASSPHRASE"); okxPassphrase != "" {
+		v.Set("exchanges.okx.passphrase", okxPassphrase)
+	}
+
+	// 解析配置到结构体
+	var config Config
+	if err := v.Unmarshal(&config); err != nil {
+		return nil, fmt.Errorf("解析配置失败: %w", err)
+	}
+
+	// 验证配置有效性
+	if err := validateConfig(&config); err != nil {
+		return nil, fmt.Errorf("配置验证失败: %w", err)
+	}
+
+	// 输出调试信息，查看Binance API密钥是否正确读取
+	fmt.Printf("Debug - Binance配置: Enabled=%v, APIKey长度=%d, APISecret长度=%d\n",
+		config.Exchanges.Binance.Enabled,
+		len(config.Exchanges.Binance.APIKey),
+		len(config.Exchanges.Binance.APISecret))
+
+	return &config, nil
+}
+
+// 保留原有的yaml加载函数以备不时之需
+func LoadConfigFromYAML(filePath string) (*Config, error) {
 	yamlFile, err := ioutil.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("读取配置文件失败: %w", err)

@@ -1,9 +1,9 @@
 # 交易所配置
 exchanges:
   binance:
-    enabled: false
-    api_key: "你的币安API密钥"
-    api_secret: "你的币安API密钥"
+    enabled: true
+    api_key: "21321"
+    api_secret: "2321"
   okx:
     enabled: false
     api_key: "你的OKX API密钥"

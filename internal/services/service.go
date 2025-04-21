@@ -71,11 +71,14 @@ func NewcalcsService(
 
 	// 获取所有已注册的交易所
 	exchanges := make([]monitor.ExchangeAPI, 0)
-	for _, exchange := range exchangeFactory.GetAll() {
+	for _, ex := range exchangeFactory.GetAll() {
 		// 使用适配器将 exchange.Exchange 转换为 monitor.ExchangeAPI
-		adapter := NewExchangeAdapter(exchange)
+		adapter := NewExchangeAdapter(ex)
 		exchanges = append(exchanges, adapter)
 	}
+
+	// 创建Redis存储适配器
+	redisAdapter := NewRedisStorageAdapter(redisClient)
 
 	// 创建资金费率监控器
 	fundingMonitor := monitor.NewFundingRateMonitor(
@@ -83,7 +86,7 @@ func NewcalcsService(
 		logger,
 		cfg.Trading.MinYearlyFundingRate,
 		cfg.Trading.AllowedSymbols,
-		NewRedisStorageAdapter(redisClient),
+		redisAdapter, // 使用适配器
 	)
 
 	// 设置检查间隔

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -25,10 +26,19 @@ type StorageClient struct {
 
 // NewStorageClient 创建新的Redis存储客户端
 func NewStorageClient(addr string, password string, db int, keyPrefix string) (*StorageClient, error) {
-	// 拆分地址和端口
-	host, port := addr, ""
-	if host == "" {
-		host = "localhost:6379"
+	// 正确解析地址和端口
+	host := "localhost"
+	port := "6379"
+
+	// 如果提供了地址，则解析
+	if addr != "" {
+		addrParts := strings.Split(addr, ":")
+		if len(addrParts) >= 1 {
+			host = addrParts[0]
+		}
+		if len(addrParts) >= 2 {
+			port = addrParts[1]
+		}
 	}
 
 	// 创建Redis客户端选项
