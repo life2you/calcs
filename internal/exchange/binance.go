@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/life2you_mini/calcs/internal/config"
+
 	ccxt "github.com/ccxt/ccxt/go/v4"
 	"go.uber.org/zap"
 )
@@ -19,15 +21,41 @@ type BinanceClient struct {
 }
 
 // NewBinanceClient 创建新的币安客户端
-func NewBinanceClient(apiKey, apiSecret string, logger *zap.Logger) *BinanceClient {
-	binanceInstance := ccxt.NewBinance(map[string]interface{}{
+func NewBinanceClient(apiKey, apiSecret string, logger *zap.Logger, proxy *config.HttpProxyConfig) *BinanceClient {
+	// 创建配置对象
+	clientConfig := map[string]interface{}{
 		"apiKey":          apiKey,
 		"secret":          apiSecret,
 		"enableRateLimit": true,
 		"options": map[string]interface{}{
 			"defaultType": "future",
 		},
-	})
+		"timeout": 30000, // 添加超时配置
+	}
+
+	// 增加日志：打印传入的代理配置
+	if proxy != nil {
+		logger.Info("传入的代理配置",
+			zap.Bool("enabled", proxy.Enabled),
+			zap.String("httpProxy", proxy.HttpProxy),
+			zap.String("httpsProxy", proxy.HttpsProxy),
+		)
+	} else {
+		logger.Warn("传入的代理配置为 nil")
+	}
+
+	// 如果设置了代理，添加到配置中 (添加了 nil 检查)
+	if proxy != nil && proxy.Enabled && (proxy.HttpsProxy != "" || proxy.HttpProxy != "") {
+		if proxy.HttpsProxy != "" {
+			clientConfig["httpsProxy"] = proxy.HttpsProxy
+		} else {
+			clientConfig["httpProxy"] = proxy.HttpProxy
+		}
+	} else {
+		logger.Info("代码配置：未使用代理或配置无效") // 修改日志文本
+	}
+
+	binanceInstance := ccxt.NewBinance(clientConfig)
 
 	client := &BinanceClient{
 		exchange: binanceInstance,

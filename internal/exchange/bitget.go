@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/life2you_mini/calcs/internal/config"
+
 	ccxt "github.com/ccxt/ccxt/go/v4"
 	"go.uber.org/zap"
 	// "strconv" // strconv 似乎没有用到，可以注释掉
@@ -19,9 +21,9 @@ type BitgetClient struct {
 }
 
 // NewBitgetClient 创建新的Bitget客户端
-func NewBitgetClient(apiKey, apiSecret, passphrase string, logger *zap.Logger) *BitgetClient {
-	// 创建CCXT的Bitget实例
-	bitgetInstance := ccxt.NewBitget(map[string]interface{}{
+func NewBitgetClient(apiKey, apiSecret, passphrase string, logger *zap.Logger, proxy *config.HttpProxyConfig) *BitgetClient {
+	// 创建配置对象
+	clientConfig := map[string]interface{}{
 		"apiKey":          apiKey,
 		"secret":          apiSecret,
 		"password":        passphrase, // Bitget 使用 password 字段
@@ -29,7 +31,34 @@ func NewBitgetClient(apiKey, apiSecret, passphrase string, logger *zap.Logger) *
 		"options": map[string]interface{}{
 			"defaultType": "swap", // Bitget 可能默认为合约
 		},
-	})
+		"timeout": 30000, // 添加超时配置
+	}
+
+	// 增加日志：打印传入的代理配置
+	if proxy != nil {
+		logger.Info("传入的代理配置",
+			zap.Bool("enabled", proxy.Enabled),
+			zap.String("httpProxy", proxy.HttpProxy),
+			zap.String("httpsProxy", proxy.HttpsProxy),
+		)
+	} else {
+		logger.Warn("传入的代理配置为 nil")
+	}
+
+	// 如果设置了代理，记录日志，但不再通过代码配置代理给CCXT
+	if proxy != nil && proxy.Enabled && (proxy.HttpsProxy != "" || proxy.HttpProxy != "") {
+		proxyToUse := proxy.HttpsProxy
+		if proxyToUse == "" {
+			proxyToUse = proxy.HttpProxy
+		}
+		logger.Info("代码配置：计划使用HTTP代理（将通过环境变量生效）", zap.String("proxy", proxyToUse))
+		// 移除：clientConfig["proxy"] = proxyToUse
+	} else {
+		logger.Info("代码配置：未使用代理或配置无效")
+	}
+
+	// 创建CCXT的Bitget实例
+	bitgetInstance := ccxt.NewBitget(clientConfig)
 
 	// 修正：传入 bitgetInstance 的地址
 	return &BitgetClient{

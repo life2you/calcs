@@ -1,0 +1,67 @@
+# HTTP代理配置 (根据需要启用和配置)
+proxy:
+  enabled: false             # 是否启用代理 (true/false)
+  http_proxy: ""            # HTTP代理地址 (例如 "http://127.0.0.1:7890")
+  https_proxy: ""           # HTTPS代理地址 (例如 "http://127.0.0.1:7890")
+
+# 交易所配置 (启用你需要的交易所并填入凭证)
+exchanges:
+  binance:
+    enabled: false           # 是否启用 Binance (true/false)
+    api_key: "<YOUR_BINANCE_API_KEY>" # 你的 Binance API Key
+    api_secret: "<YOUR_BINANCE_API_SECRET>" # 你的 Binance API Secret
+  okx:
+    enabled: false           # 是否启用 OKX (true/false)
+    api_key: "<YOUR_OKX_API_KEY>"       # 你的 OKX API Key
+    api_secret: "<YOUR_OKX_API_SECRET>"   # 你的 OKX API Secret
+    passphrase: "<YOUR_OKX_PASSPHRASE>"   # 你的 OKX Passphrase
+  bitget:
+    enabled: false           # 是否启用 Bitget (true/false)
+    api_key: "<YOUR_BITGET_API_KEY>"      # 你的 Bitget API Key
+    api_secret: "<YOUR_BITGET_API_SECRET>"  # 你的 Bitget API Secret
+    passphrase: "<YOUR_BITGET_PASSPHRASE>" # 你的 Bitget Passphrase
+
+# 交易策略配置
+trading:
+  min_yearly_funding_rate: 50.0 # 触发套利的最低年化资金费率 (%)，例如 50.0
+  max_leverage: 5                # 最大允许使用的杠杆倍数
+  max_position_size_percent: 0.6 # 单次交易允许使用的最大仓位比例 (相对于总可用资金)，例如 0.6 (60%)
+  account_usage_limit: 0.75      # 总账户资金使用上限比例，例如 0.75 (75%)
+  min_profit_threshold: 0.5      # 认为机会有效的最低预期利润率 (%)，例如 0.5
+  allowed_symbols: []            # 允许交易的交易对列表 (例如 ["BTC/USDT", "ETH/USDT"]), 留空则不限制
+
+# 风险管理配置
+risk_management:
+  liquidation_warning_threshold: 0.25 # 触发清算警告的保证金比例阈值，例如 0.25 (25%)
+  liquidation_emergency_threshold: 0.15 # 触发紧急清算的保证金比例阈值，例如 0.15 (15%)
+  hedge_rebalance_threshold: 0.03     # 触发对冲再平衡的头寸偏离阈值，例如 0.03 (3%)
+  max_position_time_days: 14          # 单个套利头寸允许持有的最长时间（天）
+  volatility_risk_weight: 0.3         # 风险评分中波动性风险的权重
+  liquidation_risk_weight: 0.4        # 风险评分中强平风险的权重
+  liquidity_risk_weight: 0.2          # 风险评分中流动性风险的权重
+  exchange_risk_weight: 0.1           # 风险评分中交易所风险的权重
+  max_hedge_ratio_adjustment: 0.2     # 每次对冲调整的最大比例
+  anomaly_z_score_threshold: 3.0        # 判定为异常数据的 Z 分数阈值
+
+# 系统配置
+system:
+  funding_rate_check_interval_minutes: 10 # 检查资金费率的时间间隔（分钟）
+  risk_monitoring_interval_minutes: 15  # 风险监控的时间间隔（分钟）
+  log_level: "INFO"                     # 日志级别 (DEBUG, INFO, WARN, ERROR, FATAL)
+  data_dir: "./data"                    # 数据存储目录
+  log_dir: "./logs"                     # 日志文件存储目录
+
+# Redis配置 (用于状态存储、任务队列等)
+redis:
+  host: "localhost"           # Redis 服务器地址
+  port: 6379                  # Redis 服务器端口
+  password: ""                # Redis 密码 (如果没有则留空)
+  db: 0                       # Redis 数据库编号
+  key_prefix: "funding_bot:" # Redis Key 的前缀，用于隔离不同应用
+
+# 通知配置 (例如，用于发送警报)
+notification:
+  telegram:
+    enabled: false               # 是否启用 Telegram 通知 (true/false)
+    bot_token: "<YOUR_TELEGRAM_BOT_TOKEN>" # 你的 Telegram 机器人 Token
+    chat_id: "<YOUR_TELEGRAM_CHAT_ID>"     # 接收通知的 Telegram 聊天 ID 

@@ -18,6 +18,7 @@ type Config struct {
 	Redis          RedisConfig          `mapstructure:"redis"`
 	Postgres       PostgresConfig       `mapstructure:"postgres"`
 	Notification   NotificationConfig   `mapstructure:"notification"`
+	HttpProxy      HttpProxyConfig      `mapstructure:"proxy"`
 }
 
 // ExchangesConfig 交易所配置
@@ -81,6 +82,12 @@ type SystemConfig struct {
 	LogLevel                        string `mapstructure:"log_level"`
 	DataDir                         string `mapstructure:"data_dir"`
 	LogDir                          string `mapstructure:"log_dir"`
+}
+
+type HttpProxyConfig struct {
+	Enabled    bool   `mapstructure:"enabled"`
+	HttpProxy  string `mapstructure:"http_proxy"`
+	HttpsProxy string `mapstructure:"https_proxy"`
 }
 
 // RedisConfig Redis配置

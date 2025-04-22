@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/life2you_mini/calcs/internal/config"
+
 	ccxt "github.com/ccxt/ccxt/go/v4"
 	"go.uber.org/zap"
 )
@@ -17,14 +19,41 @@ type OKXClient struct {
 }
 
 // NewOKXClient 创建新的OKX客户端
-func NewOKXClient(apiKey, apiSecret, password string, logger *zap.Logger) *OKXClient {
-	// 创建CCXT的OKX实例
-	okxInstance := ccxt.NewOkx(map[string]interface{}{
+func NewOKXClient(apiKey, apiSecret, password string, logger *zap.Logger, proxy *config.HttpProxyConfig) *OKXClient {
+	// 创建配置对象
+	clientConfig := map[string]interface{}{
 		"apiKey":          apiKey,
 		"secret":          apiSecret,
 		"password":        password,
 		"enableRateLimit": true,
-	})
+		"timeout":         30000, // 添加超时配置
+	}
+
+	// 增加日志：打印传入的代理配置
+	if proxy != nil {
+		logger.Info("传入的代理配置",
+			zap.Bool("enabled", proxy.Enabled),
+			zap.String("httpProxy", proxy.HttpProxy),
+			zap.String("httpsProxy", proxy.HttpsProxy),
+		)
+	} else {
+		logger.Warn("传入的代理配置为 nil")
+	}
+
+	// 如果设置了代理，记录日志，但不再通过代码配置代理给CCXT
+	if proxy != nil && proxy.Enabled && (proxy.HttpsProxy != "" || proxy.HttpProxy != "") {
+		proxyToUse := proxy.HttpsProxy
+		if proxyToUse == "" {
+			proxyToUse = proxy.HttpProxy
+		}
+		logger.Info("代码配置：计划使用HTTP代理（将通过环境变量生效）", zap.String("proxy", proxyToUse))
+		// 移除：clientConfig["proxy"] = proxyToUse
+	} else {
+		logger.Info("代码配置：未使用代理或配置无效")
+	}
+
+	// 创建CCXT的OKX实例
+	okxInstance := ccxt.NewOkx(clientConfig)
 
 	// 加载市场信息
 	go func() {

@@ -76,7 +76,10 @@ func main() {
 
 // 初始化日志
 func initLogger() (*zap.Logger, error) {
-	config := zap.NewProductionConfig()
-	config.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	// 使用开发环境配置，输出更易读的格式
+	config := zap.NewDevelopmentConfig()
+	// 可以选择性地保留或修改时间格式，开发配置默认使用不同的格式
+	config.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder        // 保留 ISO8601 时间格式
+	config.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder // 使用带颜色的级别显示
 	return config.Build()
 }

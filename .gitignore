@@ -1,0 +1,39 @@
+# Go build outputs
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Binaries for programs and plugins
+bin/
+*.out
+
+# Test binary, build with `go test -c`
+*.test
+
+# Dependency directories (if using modules, vendor is often ignored)
+vendor/
+
+# IDE settings folders
+.idea/
+.vscode/
+*.iml
+
+# Operating system files
+.DS_Store
+Thumbs.db
+
+# Log files
+*.log
+logs/
+
+# Configuration files (ignore the actual config, keep the example)
+config/config.yaml
+
+# Environment configuration
+.env
+
+# Coverage profil
+coverage.out
+profile.out 

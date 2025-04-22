@@ -50,6 +50,7 @@ func NewcalcsService(
 	// 创建交易所工厂
 	exchangeFactory := exchange.CreateExchangeFactory(
 		logger,
+		&cfg.HttpProxy,
 		&exchange.BinanceConfig{
 			Enabled:   cfg.Exchanges.Binance.Enabled,
 			APIKey:    cfg.Exchanges.Binance.APIKey,
